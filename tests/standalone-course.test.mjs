@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
+import {
+  courseRoutePaths,
+  generateRouteEntrypoints,
+} from "../scripts/generate-route-entrypoints.mjs";
 
 const read = (path) => readFile(new URL(path, import.meta.url), "utf8");
 
@@ -105,6 +111,21 @@ test("direct GitHub Pages routes restore without a dead link", async () => {
   assert.match(fallback, /location\.replace/);
   assert.match(index, /restoreCourseRoute/);
   assert.match(index, /history\.replaceState/);
+});
+
+test("the production build creates a static HTML entrypoint for every direct route", async (context) => {
+  const tempDir = await mkdtemp(path.join(os.tmpdir(), "urodinamia-routes-"));
+  context.after(() => rm(tempDir, { recursive: true, force: true }));
+
+  const shell = "<!doctype html><html><body><div id=\"root\"></div></body></html>";
+  await writeFile(path.join(tempDir, "index.html"), shell);
+  await generateRouteEntrypoints(tempDir);
+
+  assert.equal(courseRoutePaths.length, 15);
+  for (const routePath of courseRoutePaths) {
+    const entrypoint = path.join(tempDir, ...routePath.split("/").filter(Boolean), "index.html");
+    assert.equal(await readFile(entrypoint, "utf8"), shell);
+  }
 });
 
 test("the pilot removes the two unreliable labelled images and avoids catheter upscaling", async () => {

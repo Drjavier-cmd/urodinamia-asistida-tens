@@ -1,7 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { TrainingCompletion, TrainingPreparation } from "../../training-center";
+import { useEffect, useMemo, useState, type MouseEvent, type ReactNode } from "react";
+import {
+  Assessment,
+  CompetencyMatrix,
+  GovernanceAndDownloads,
+  PracticalEvaluation,
+  ScenarioLab,
+  TrainingRoadmap,
+} from "../../training-center";
 import {
   createCourseRuntimeState,
   readCourseRuntimeState,
@@ -13,6 +20,13 @@ import {
   deriveCompletedStageIds,
   derivePdetSeries,
 } from "../../training-logic";
+import {
+  courseHref,
+  coursePathFromLocation,
+  courseRoutes,
+  matchCourseRoute,
+  modulePath,
+} from "../../course-platform/routes";
 import {
   URODYNAMICS_COURSE_ID,
   urodynamicsCourseDefinition,
@@ -50,7 +64,7 @@ type SexMode = "mujer" | "hombre";
 type SensorLevel = "alto" | "correcto" | "bajo";
 type TraceMode = "estable" | "tos" | "artefacto";
 type PvrMode = "ecografia" | "nelaton";
-type CyclePhase = "llenado" | "sensaciones" | "vaciado";
+type StudyPhase = "flujo" | "cistometria" | "vaciado";
 
 const stages: Stage[] = [
   {
@@ -60,34 +74,33 @@ const stages: Stage[] = [
     shortTitle: "Qué es",
     time: "4 min",
     lead:
-      "Es un estudio que simula un ciclo vesical: la vejiga se llena y después se vacía mientras el equipo registra lo que ocurre.",
+      "La urodinamia es un estudio funcional que intenta simular un ciclo normal de llenado y micción en un ambiente controlado. Permite observar cómo la vejiga almacena y vacía la orina mientras se registran el flujo, las presiones y las sensaciones comunicadas por el paciente.",
     objective:
-      "Reconocer las etapas del ciclo antes de revisar el equipo y sus conexiones.",
-    image: "/images/urodinamia-que-es.jpg",
-    mobileImage: "/images/ciclo-vesical-resumen.jpg",
+      "Comprender para qué sirve la urodinamia y reconocer el orden general del examen antes de revisar el equipo y sus conexiones.",
+    image: "/images/ciclo-vesical-resumen.jpg",
     imageAlt:
-      "Representación visual del montaje de urodinamia y de las fases de llenado, sensación y vaciado.",
-    imageCaption: "Un solo estudio observa el llenado, las sensaciones y el vaciado.",
+      "Representación visual de la vejiga durante el llenado, la percepción de sensaciones y el vaciado.",
+    imageCaption: "El estudio observa el almacenamiento y el vaciado dentro de una secuencia controlada.",
     imageClass: "cycle-overview-image",
     roleNote:
       "El TENS prepara el material, ayuda a posicionar al paciente, conecta lo indicado y vigila la calidad técnica durante el procedimiento, siempre bajo conducción profesional.",
     actions: [
-      "Llenado: la vejiga recibe líquido de forma controlada.",
-      "Sensaciones: se registran cuando el paciente las comunica.",
-      "Vaciado: se registra la micción junto con las presiones.",
+      "Flujo libre: registra una micción espontánea sin catéteres.",
+      "Cistometría de llenado: reproduce el llenado de forma controlada y registra presiones y sensaciones comunicadas por el paciente.",
+      "Fase de vaciado: registra simultáneamente la micción, el flujo y las presiones.",
     ],
     alert:
-      "Este módulo explica la secuencia del examen; no enseña a interpretar resultados clínicos.",
+      "Este módulo entrega el panorama general del examen. Las tareas de cada etapa se desarrollan más adelante y no incluyen la interpretación clínica de los resultados.",
     question: {
-      prompt: "¿Qué representa la urodinamia en este curso?",
+      prompt: "¿Con qué medición se inicia la secuencia del examen descrita en este curso?",
       options: [
-        "Solo una medición del chorro",
-        "Un ciclo de llenado, sensaciones y vaciado",
-        "Solo una ecografía de la vejiga",
+        "La cistometría de llenado",
+        "El flujo libre, sin catéteres",
+        "La fase de vaciado con presiones",
       ],
       answer: 1,
-      success: "Correcto. El estudio sigue el ciclo desde el llenado hasta el vaciado.",
-      retry: "La urodinamia observa el ciclo vesical completo, no una sola medición.",
+      success: "Correcto. El examen comienza con el flujo libre, antes de instalar los catéteres.",
+      retry: "La primera medición es el flujo libre y se realiza sin catéteres.",
     },
   },
   {
@@ -388,7 +401,7 @@ const equipment = [
   { code: "08", name: "Sensores y software", role: "Reciben Pves y Pabd, calculan Pdet y permiten registrar eventos." },
 ];
 
-const cyclePhases: Record<CyclePhase, {
+const studyPhases: Record<StudyPhase, {
   number: string;
   title: string;
   headline: string;
@@ -396,27 +409,27 @@ const cyclePhases: Record<CyclePhase, {
   image: string;
   imageAlt: string;
 }> = {
-  llenado: {
+  flujo: {
     number: "01",
-    title: "Llenado",
-    headline: "La vejiga recibe líquido",
-    detail: "El equipo inicia el llenado controlado mientras registra las presiones.",
-    image: "/images/ciclo-llenado.png",
-    imageAlt: "Ilustración de la vejiga durante la fase de llenado.",
+    title: "Flujo libre",
+    headline: "Micción espontánea sin catéteres",
+    detail: "Es la primera medición del examen y registra el flujo urinario en condiciones de privacidad.",
+    image: "/images/uroflujo-mujer-sentada.png",
+    imageAlt: "Ilustración didáctica del flujo libre en posición sentada, con el embudo y el uroflujómetro bajo el asiento.",
   },
-  sensaciones: {
+  cistometria: {
     number: "02",
-    title: "Sensaciones",
-    headline: "El paciente comunica lo que siente",
-    detail: "Cada sensación se marca en el momento en que el paciente la informa.",
-    image: "/images/ciclo-sensacion.png",
-    imageAlt: "Ilustración de una vejiga llena asociada a la sensación vesical.",
+    title: "Cistometría",
+    headline: "Llenado, sensaciones y presiones",
+    detail: "Con los catéteres instalados, la vejiga se llena de forma controlada mientras se registran las presiones y las sensaciones que comunica el paciente.",
+    image: "/images/ciclo-llenado.png",
+    imageAlt: "Ilustración de la vejiga durante la cistometría de llenado.",
   },
   vaciado: {
     number: "03",
     title: "Vaciado",
-    headline: "El paciente orina",
-    detail: "El sistema registra simultáneamente el flujo y las presiones.",
+    headline: "Micción con flujo y presiones",
+    detail: "Al finalizar el llenado, el paciente orina y el sistema registra simultáneamente el flujo y las presiones.",
     image: "/images/ciclo-vaciado.png",
     imageAlt: "Ilustración de la vejiga durante la fase de vaciado y flujo urinario.",
   },
@@ -457,21 +470,21 @@ const traceModes: Record<TraceMode, {
   },
 };
 
-function CycleExplorer() {
-  const [phase, setPhase] = useState<CyclePhase>("llenado");
-  const selected = cyclePhases[phase];
+function StudySequenceExplorer() {
+  const [phase, setPhase] = useState<StudyPhase>("flujo");
+  const selected = studyPhases[phase];
 
   return (
     <div className="interactive-box cycle-explorer">
       <div className="interactive-heading">
-        <span>Ciclo vesical simulado</span>
+        <span>Panorama del examen urodinámico</span>
         <strong>Selecciona cada etapa</strong>
       </div>
-      <div className="cycle-stepper" role="group" aria-label="Etapas del ciclo vesical">
-        {(Object.keys(cyclePhases) as CyclePhase[]).map((key) => (
+      <div className="cycle-stepper" role="group" aria-label="Etapas del estudio urodinámico">
+        {(Object.keys(studyPhases) as StudyPhase[]).map((key) => (
           <button key={key} type="button" onClick={() => setPhase(key)} aria-pressed={phase === key}>
-            <span>{cyclePhases[key].number}</span>
-            <strong>{cyclePhases[key].title}</strong>
+            <span>{studyPhases[key].number}</span>
+            <strong>{studyPhases[key].title}</strong>
           </button>
         ))}
       </div>
@@ -907,7 +920,7 @@ function VoidingExplorer() {
 }
 
 function StageInteraction({ id }: { id: string }) {
-  if (id === "fundamentos") return <CycleExplorer />;
+  if (id === "fundamentos") return <StudySequenceExplorer />;
   if (id === "senales") return <SignalExplorer />;
   if (id === "equipo") return <EquipmentExplorer />;
   if (id === "flujo") return <FlowExplorer />;
@@ -918,7 +931,417 @@ function StageInteraction({ id }: { id: string }) {
   return <VoidingExplorer />;
 }
 
+type Navigate = (path: string) => void;
+
+const pilotLabel = "Piloto de navegación · contenido v0.8";
+
+function RouteLink({
+  to,
+  navigate,
+  className,
+  children,
+  current = false,
+}: {
+  to: string;
+  navigate: Navigate;
+  className?: string;
+  children: ReactNode;
+  current?: boolean;
+}) {
+  function follow(event: MouseEvent<HTMLAnchorElement>) {
+    if (
+      event.defaultPrevented
+      || event.button !== 0
+      || event.metaKey
+      || event.ctrlKey
+      || event.shiftKey
+      || event.altKey
+    ) {
+      return;
+    }
+    event.preventDefault();
+    navigate(to);
+  }
+
+  return (
+    <a
+      href={courseHref(to, import.meta.env.BASE_URL)}
+      onClick={follow}
+      className={className}
+      aria-current={current ? "page" : undefined}
+    >
+      {children}
+    </a>
+  );
+}
+
+function PilotHeader({ routePath, navigate }: { routePath: string; navigate: Navigate }) {
+  const courseIsCurrent = routePath === courseRoutes.course || routePath.startsWith("/curso/modulo/");
+  const links = [
+    { path: courseRoutes.home, label: "Inicio", current: routePath === courseRoutes.home },
+    { path: courseRoutes.pretest, label: "Pretest", current: routePath === courseRoutes.pretest },
+    { path: courseRoutes.course, label: "Módulos", current: courseIsCurrent },
+    { path: courseRoutes.scenarios, label: "Escenarios", current: routePath === courseRoutes.scenarios },
+    { path: courseRoutes.posttest, label: "Postest", current: routePath === courseRoutes.posttest },
+    { path: courseRoutes.practice, label: "Práctica", current: routePath === courseRoutes.practice },
+    { path: courseRoutes.sources, label: "Fuentes", current: routePath === courseRoutes.sources },
+  ];
+
+  return (
+    <header className="pilot-header">
+      <div className="pilot-header-inner">
+        <RouteLink to={courseRoutes.home} navigate={navigate} className="course-brand">
+          <span>UA</span>
+          <strong>Urodinamia asistida</strong>
+        </RouteLink>
+        <span className="pilot-badge">Versión piloto</span>
+        <nav className="pilot-nav" aria-label="Navegación principal del curso">
+          {links.map((link) => (
+            <RouteLink
+              key={link.path}
+              to={link.path}
+              navigate={navigate}
+              current={link.current}
+            >
+              {link.label}
+            </RouteLink>
+          ))}
+        </nav>
+      </div>
+    </header>
+  );
+}
+
+function PageIntro({
+  eyebrow,
+  title,
+  description,
+  aside,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  aside?: ReactNode;
+}) {
+  return (
+    <header className="page-intro">
+      <div>
+        <p className="eyebrow">{eyebrow}</p>
+        <h1>{title}</h1>
+        <p>{description}</p>
+      </div>
+      {aside ? <div className="page-intro-aside">{aside}</div> : null}
+    </header>
+  );
+}
+
+function PilotScope() {
+  return (
+    <section className="pilot-scope" aria-labelledby="pilot-scope-title">
+      <div>
+        <p className="eyebrow">Alcance del piloto</p>
+        <h2 id="pilot-scope-title">Formación teórica y prueba de usabilidad</h2>
+      </div>
+      <p>Esta versión permite revisar navegación, comprensión y continuidad del aprendizaje. Completarla no habilita práctica autónoma ni sustituye la observación directa por un supervisor.</p>
+      <div className="pilot-pending">
+        <span>Pendiente para uso institucional</span>
+        <strong>Higiene, criterios de suspensión, manual del equipo y protocolo local.</strong>
+      </div>
+    </section>
+  );
+}
+
+function CourseFooter() {
+  return (
+    <footer className="site-footer">
+      <p>Material educativo para entrenamiento de ayudantes, sujeto al protocolo local y a supervisión clínica.</p>
+      <p>
+        Base técnica: <a href="https://pubmed.ncbi.nlm.nih.gov/27917521/" target="_blank" rel="noreferrer">ICS Good Urodynamic Practices 2016</a>
+        <span aria-hidden="true"> · </span>
+        <a href="https://doi.org/10.1016/j.cont.2023.100710" target="_blank" rel="noreferrer">ICS-SUFU presión-flujo 2023, parte 1</a>
+        <span aria-hidden="true"> · </span>
+        <a href="https://doi.org/10.1016/j.cont.2023.100709" target="_blank" rel="noreferrer">ICS-SUFU presión-flujo 2023, parte 2</a>
+      </p>
+    </footer>
+  );
+}
+
+function HomePage({
+  progress,
+  completedCount,
+  navigate,
+}: {
+  progress: number;
+  completedCount: number;
+  navigate: Navigate;
+}) {
+  return (
+    <>
+      <section className="hero pilot-hero" aria-labelledby="page-title">
+        <div className="hero-copy">
+          <p className="eyebrow">Curso interactivo · {pilotLabel}</p>
+          <h1 id="page-title">Urodinamia asistida</h1>
+          <p className="hero-lede">Entrenamiento didáctico digital para TENS que participan asistiendo en urodinamias.</p>
+          <div className="hero-actions">
+            <RouteLink to={courseRoutes.pretest} navigate={navigate} className="primary-button">
+              Comenzar<span aria-hidden="true">→</span>
+            </RouteLink>
+            {completedCount > 0 ? (
+              <RouteLink to={courseRoutes.course} navigate={navigate} className="secondary-button">
+                Retomar progreso
+              </RouteLink>
+            ) : null}
+            <div className="hero-meta" aria-label="Datos del curso">
+              <span><b>9</b> módulos</span>
+              <span><b>80%</b> postest</span>
+              <span><b>{progress}%</b> módulos</span>
+            </div>
+          </div>
+        </div>
+        <figure className="hero-visual urodynamics-cover-visual pilot-cover-visual">
+          <img src="/images/llenado-vaciado-misma-posicion.png" alt="Paciente sentado frente al equipo de urodinamia durante el montaje, llenado y vaciado en una misma posición." />
+          <figcaption><span>Recorrido guiado</span><strong>Preparación, presiones, flujo y cierre en nueve módulos.</strong></figcaption>
+        </figure>
+      </section>
+
+      <TrainingRoadmap
+        onGoToPretest={() => navigate(courseRoutes.pretest)}
+        onGoToCourse={() => navigate(courseRoutes.course)}
+        onGoToScenarios={() => navigate(courseRoutes.scenarios)}
+        onGoToPosttest={() => navigate(courseRoutes.posttest)}
+        onGoToPractice={() => navigate(courseRoutes.practice)}
+      />
+      <CompetencyMatrix />
+      <PilotScope />
+    </>
+  );
+}
+
+function CourseIndexPage({
+  activeIndex,
+  completedSet,
+  progress,
+  navigate,
+  onReset,
+}: {
+  activeIndex: number;
+  completedSet: Set<string>;
+  progress: number;
+  navigate: Navigate;
+  onReset: () => void;
+}) {
+  const currentIsIncomplete = !completedSet.has(stages[activeIndex].id);
+  const firstIncomplete = stages.findIndex((stage) => !completedSet.has(stage.id));
+  const continueIndex = currentIsIncomplete ? activeIndex : (firstIncomplete >= 0 ? firstIncomplete : activeIndex);
+  const continuePath = progress === 100 ? courseRoutes.scenarios : modulePath(continueIndex + 1);
+
+  return (
+    <>
+      <PageIntro
+        eyebrow="Índice del curso"
+        title="Aprende en el orden de la sala"
+        description="Los nueve módulos permanecen disponibles para consulta. La secuencia numerada muestra el orden recomendado y cada respuesta correcta se guarda en este navegador."
+        aside={(
+          <div className="index-progress-card">
+            <span>Progreso de módulos</span>
+            <strong>{completedSet.size} de {stages.length}</strong>
+            <div className="progress-track" aria-label={`${progress}% completado`}><span style={{ width: `${progress}%` }} /></div>
+            <RouteLink to={continuePath} navigate={navigate} className="primary-button">
+              {progress === 100 ? "Continuar con escenarios" : "Continuar"}<span aria-hidden="true">→</span>
+            </RouteLink>
+          </div>
+        )}
+      />
+
+      <section className="module-index" aria-labelledby="module-index-title">
+        <div className="module-index-heading">
+          <div>
+            <p className="eyebrow">Recorrido guiado</p>
+            <h2 id="module-index-title">Nueve módulos, una secuencia recomendada</h2>
+          </div>
+          <button type="button" className="reset-button" onClick={onReset}>Reiniciar progreso</button>
+        </div>
+        <ol className="module-card-grid">
+          {stages.map((stage, index) => {
+            const completed = completedSet.has(stage.id);
+            return (
+              <li key={stage.id}>
+                <RouteLink to={modulePath(index + 1)} navigate={navigate} className={completed ? "module-card completed" : "module-card"}>
+                  <span className="module-card-number">{completed ? "✓" : String(index + 1).padStart(2, "0")}</span>
+                  <span className="module-card-copy"><small>{stage.tag}</small><strong>{stage.title}</strong><em>{stage.time}</em></span>
+                  <span className="module-card-action">{completed ? "Revisar" : "Abrir"}<b aria-hidden="true">→</b></span>
+                </RouteLink>
+              </li>
+            );
+          })}
+        </ol>
+      </section>
+
+      <section className="route-band index-route-band" aria-label="Secuencia principal del procedimiento">
+        <div className="route-intro"><p className="eyebrow">Orden del procedimiento</p><strong>Una secuencia continua</strong></div>
+        <ol>
+          {stages.slice(3).map((item, index) => (
+            <li key={item.id}>
+              <RouteLink to={modulePath(index + 4)} navigate={navigate}>
+                <span>{index + 1}</span>{item.shortTitle}
+              </RouteLink>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <section className="principles-band" aria-label="Principios técnicos">
+        <div><span>01</span><strong>Privacidad</strong><p>El flujo libre y el vaciado requieren un entorno reservado.</p></div>
+        <div><span>02</span><strong>Receptor listo</strong><p>Vacío, centrado bajo el embudo y con batería disponible.</p></div>
+        <div><span>03</span><strong>Sin aire</strong><p>La columna de líquido debe transmitir la presión.</p></div>
+        <div><span>04</span><strong>Sin tracción</strong><p>Las cintas estabilizan; no comprimen ni tiran.</p></div>
+      </section>
+    </>
+  );
+}
+
+function ModuleProgress({
+  activeIndex,
+  completedSet,
+  navigate,
+}: {
+  activeIndex: number;
+  completedSet: Set<string>;
+  navigate: Navigate;
+}) {
+  return (
+    <nav className="module-progress-nav" aria-label="Navegar entre módulos">
+      <RouteLink to={courseRoutes.course} navigate={navigate} className="module-index-link">Índice</RouteLink>
+      <ol>
+        {stages.map((stage, index) => (
+          <li key={stage.id}>
+            <RouteLink
+              to={modulePath(index + 1)}
+              navigate={navigate}
+              className={completedSet.has(stage.id) ? "completed" : undefined}
+              current={index === activeIndex}
+            >
+              <span>{completedSet.has(stage.id) ? "✓" : index + 1}</span>
+              <small>{stage.shortTitle}</small>
+            </RouteLink>
+          </li>
+        ))}
+      </ol>
+    </nav>
+  );
+}
+
+function ModulePage({
+  activeIndex,
+  answers,
+  completedSet,
+  progress,
+  navigate,
+  onChooseAnswer,
+}: {
+  activeIndex: number;
+  answers: Record<string, number>;
+  completedSet: Set<string>;
+  progress: number;
+  navigate: Navigate;
+  onChooseAnswer: (index: number) => void;
+}) {
+  const stage = stages[activeIndex];
+  const selectedAnswer = answers[stage.id];
+  const answered = selectedAnswer !== undefined;
+  const isCorrect = selectedAnswer === stage.question.answer;
+  const previousPath = activeIndex === 0 ? courseRoutes.course : modulePath(activeIndex);
+  const nextPath = activeIndex === stages.length - 1 ? courseRoutes.scenarios : modulePath(activeIndex + 2);
+
+  return (
+    <section className="course-section module-page" aria-label={`Módulo ${activeIndex + 1}: ${stage.title}`}>
+      <ModuleProgress activeIndex={activeIndex} completedSet={completedSet} navigate={navigate} />
+      <article className="lesson-stage" key={stage.id}>
+        <header className="lesson-header">
+          <div><p className="eyebrow">Módulo {activeIndex + 1} · {stage.tag}</p><h1>{stage.title}</h1><p>{stage.lead}</p></div>
+          <span className="lesson-time">{stage.time}</span>
+        </header>
+
+        {stage.roleNote && <section className="role-strip" aria-label="Rol del TENS"><span>Rol del TENS</span><p>{stage.roleNote}</p></section>}
+
+        <div className="lesson-grid">
+          <div className="lesson-main">
+            <figure className={`stage-photo ${stage.imageClass ?? ""}`}>
+              <picture>
+                {stage.mobileImage ? <source media="(max-width: 680px)" srcSet={stage.mobileImage} /> : null}
+                <img src={stage.image} alt={stage.imageAlt} />
+              </picture>
+              <figcaption>{stage.imageCaption}</figcaption>
+            </figure>
+            <StageInteraction id={stage.id} />
+          </div>
+
+          <aside className="lesson-aside" aria-label={stage.id === "fundamentos" ? "Resumen del módulo" : "Acciones del ayudante"}>
+            <div className="objective-block"><span>Objetivo operativo</span><p>{stage.objective}</p></div>
+            <div className="action-checks">
+              <span>{stage.id === "fundamentos" ? "Etapas del estudio" : "En sala"}</span>
+              {stage.actions.map((action, index) => <div key={action}><b>{String(index + 1).padStart(2, "0")}</b><p>{action}</p></div>)}
+            </div>
+            <div className="alert-block"><span>{stage.id === "fundamentos" ? "Límite del módulo" : "Evita este error"}</span><p>{stage.alert}</p></div>
+          </aside>
+        </div>
+
+        <section className="knowledge-check" aria-labelledby={`question-${stage.id}`}>
+          <div className="question-copy"><span>Decisión en sala</span><h2 id={`question-${stage.id}`}>{stage.question.prompt}</h2></div>
+          <div className="answer-grid">
+            {stage.question.options.map((option, index) => (
+              <button
+                type="button"
+                key={option}
+                onClick={() => onChooseAnswer(index)}
+                className={selectedAnswer === index ? (isCorrect ? "selected correct" : "selected incorrect") : ""}
+                aria-pressed={selectedAnswer === index}
+              >
+                <span>{String.fromCharCode(65 + index)}</span>{option}
+              </button>
+            ))}
+          </div>
+          {answered && <p className={`answer-feedback ${isCorrect ? "correct" : "incorrect"}`} role="status">{isCorrect ? stage.question.success : stage.question.retry}</p>}
+        </section>
+
+        <footer className="lesson-footer">
+          <RouteLink to={previousPath} navigate={navigate} className="secondary-button"><span aria-hidden="true">←</span>{activeIndex === 0 ? "Índice" : "Anterior"}</RouteLink>
+          <span>{activeIndex + 1} / {stages.length}</span>
+          {isCorrect ? (
+            <RouteLink to={nextPath} navigate={navigate} className="primary-button next-button">
+              {activeIndex === stages.length - 1 ? "Ir a escenarios" : "Siguiente módulo"}<span aria-hidden="true">→</span>
+            </RouteLink>
+          ) : (
+            <button type="button" className="primary-button next-button" disabled>Responde para continuar<span aria-hidden="true">→</span></button>
+          )}
+        </footer>
+      </article>
+
+      {progress === 100 && activeIndex === stages.length - 1 ? (
+        <div className="completion-banner" role="status">
+          <span>Módulos completados</span>
+          <strong>El recorrido teórico continúa con escenarios y postest.</strong>
+          <p>Completar los módulos no certifica competencia práctica. La aprobación final depende de observación y firma del supervisor.</p>
+          <RouteLink to={courseRoutes.scenarios} navigate={navigate} className="primary-button">Continuar con escenarios<span aria-hidden="true">→</span></RouteLink>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+function NotFoundPage({ navigate }: { navigate: Navigate }) {
+  return (
+    <section className="not-found-page">
+      <p className="eyebrow">Ruta no encontrada</p>
+      <h1>Esta página no pertenece al curso</h1>
+      <p>Vuelve al índice para continuar con la secuencia formativa.</p>
+      <RouteLink to={courseRoutes.course} navigate={navigate} className="primary-button">Ir al índice</RouteLink>
+    </section>
+  );
+}
+
 export default function Home() {
+  const [routePath, setRoutePath] = useState(() => coursePathFromLocation(window.location.pathname, import.meta.env.BASE_URL));
   const [activeIndex, setActiveIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [posttestPassed, setPosttestPassed] = useState(false);
@@ -938,9 +1361,12 @@ export default function Home() {
           courseVersion,
         );
 
+        const initialRoute = matchCourseRoute(coursePathFromLocation(window.location.pathname, import.meta.env.BASE_URL));
+        const routeModuleIndex = initialRoute.page === "module" ? initialRoute.moduleNumber - 1 : null;
+
         if (stored) {
           const storedIndex = stages.findIndex((item) => item.id === stored.activeModuleId);
-          setActiveIndex(storedIndex >= 0 ? storedIndex : 0);
+          setActiveIndex(routeModuleIndex ?? (storedIndex >= 0 ? storedIndex : 0));
           setAnswers(stored.moduleAnswers);
           setPosttestPassed(stored.posttest.passed);
           setChecklistStatuses(stored.checklist.statuses);
@@ -950,7 +1376,7 @@ export default function Home() {
             answers?: Record<string, number>;
           }>(window.localStorage, "urodinamia-asistida-progress");
           if (legacy) {
-            setActiveIndex(Math.min(Math.max(legacy.activeIndex ?? 0, 0), stages.length - 1));
+            setActiveIndex(routeModuleIndex ?? Math.min(Math.max(legacy.activeIndex ?? 0, 0), stages.length - 1));
             setAnswers(legacy.answers ?? {});
           }
         }
@@ -964,6 +1390,39 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    function handleHistoryChange() {
+      const nextPath = coursePathFromLocation(window.location.pathname, import.meta.env.BASE_URL);
+      const nextRoute = matchCourseRoute(nextPath);
+      if (nextRoute.page === "module") {
+        setActiveIndex(nextRoute.moduleNumber - 1);
+      }
+      setRoutePath(nextPath);
+    }
+    window.addEventListener("popstate", handleHistoryChange);
+    return () => window.removeEventListener("popstate", handleHistoryChange);
+  }, []);
+
+  useEffect(() => {
+    const matched = matchCourseRoute(routePath);
+    const title = matched.page === "home"
+      ? "Urodinamia asistida para TENS"
+      : matched.page === "module"
+        ? `${stages[matched.moduleNumber - 1].title} | Urodinamia asistida`
+        : `${({
+        home: "Urodinamia asistida",
+        pretest: "Pretest",
+        course: "Módulos",
+        scenarios: "Escenarios",
+        posttest: "Postest",
+        practice: "Práctica supervisada",
+        sources: "Fuentes y gobierno",
+        "not-found": "Página no encontrada",
+        } as Record<typeof matched.page, string>)[matched.page]} | Urodinamia asistida`;
+    document.title = title;
+    window.requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: "auto" }));
+  }, [routePath]);
+
+  useEffect(() => {
     if (!hydrated) return;
     const courseVersion = urodynamicsCourseDefinition.governance.version;
     const state = createCourseRuntimeState(URODYNAMICS_COURSE_ID, courseVersion);
@@ -975,34 +1434,24 @@ export default function Home() {
     writeCourseRuntimeState(window.localStorage, state);
   }, [activeIndex, answers, checklistStatuses, completed, hydrated, posttestPassed]);
 
-  const stage = stages[activeIndex];
-  const selectedAnswer = answers[stage.id];
-  const answered = selectedAnswer !== undefined;
-  const isCorrect = selectedAnswer === stage.question.answer;
   function chooseAnswer(index: number) {
+    const stage = stages[activeIndex];
     setAnswers((current) => ({ ...current, [stage.id]: index }));
   }
 
-  function goToStage(index: number) {
-    setActiveIndex(Math.min(Math.max(index, 0), stages.length - 1));
-    window.setTimeout(() => {
-      document.querySelector("#curso")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 0);
+  function navigate(path: string) {
+    const nextHref = courseHref(path, import.meta.env.BASE_URL);
+    const nextRoute = matchCourseRoute(path);
+    if (nextRoute.page === "module") {
+      setActiveIndex(nextRoute.moduleNumber - 1);
+    }
+    window.history.pushState({}, "", nextHref);
+    setRoutePath(path);
   }
 
   function goToStageById(id: string) {
     const index = stages.findIndex((item) => item.id === id);
-    goToStage(index >= 0 ? index : 0);
-  }
-
-  function startTraining() {
-    if (completed.length) {
-      goToStage(activeIndex);
-      return;
-    }
-    window.setTimeout(() => {
-      document.querySelector("#ruta-formacion")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 0);
+    navigate(modulePath(index >= 0 ? index + 1 : 1));
   }
 
   function resetCourse() {
@@ -1012,219 +1461,72 @@ export default function Home() {
     setChecklistStatuses({});
   }
 
+  const route = matchCourseRoute(routePath);
+  let page: ReactNode;
+
+  if (route.page === "home") {
+    page = <HomePage progress={progress} completedCount={completed.length} navigate={navigate} />;
+  } else if (route.page === "pretest") {
+    page = (
+      <div className="pilot-page assessment-page">
+        <PageIntro eyebrow="Paso 1 de 5" title="Pretest diagnóstico" description="Registra una línea base antes de iniciar los módulos. No aprueba ni reprueba y no modifica el orden del curso." />
+        <Assessment mode="pretest" onReviewModule={goToStageById} onContinue={() => navigate(courseRoutes.course)} />
+      </div>
+    );
+  } else if (route.page === "course") {
+    page = <CourseIndexPage activeIndex={activeIndex} completedSet={completedSet} progress={progress} navigate={navigate} onReset={resetCourse} />;
+  } else if (route.page === "module") {
+    page = <ModulePage activeIndex={route.moduleNumber - 1} answers={answers} completedSet={completedSet} progress={progress} navigate={navigate} onChooseAnswer={chooseAnswer} />;
+  } else if (route.page === "scenarios") {
+    page = (
+      <div className="pilot-page scenario-page">
+        <PageIntro eyebrow="Paso 3 de 5" title="Laboratorio de escenarios" description="Revisa los siete escenarios de detectar y avisar. La interpretación del registro continúa bajo responsabilidad profesional." aside={<RouteLink to={courseRoutes.posttest} navigate={navigate} className="primary-button">Ir al postest<span aria-hidden="true">→</span></RouteLink>} />
+        <ScenarioLab />
+      </div>
+    );
+  } else if (route.page === "posttest") {
+    page = (
+      <div className="pilot-page assessment-page">
+        <PageIntro eyebrow="Paso 4 de 5" title="Postest" description="El umbral interno exige al menos 80% y todas las preguntas críticas correctas. No verifica identidad ni competencia práctica." />
+        <Assessment
+          mode="postest"
+          onReviewModule={goToStageById}
+          unlocked={progress === 100}
+          courseProgress={progress}
+          onGoToCourse={() => navigate(courseRoutes.course)}
+          onGoToPractice={() => navigate(courseRoutes.practice)}
+          onResult={setPosttestPassed}
+        />
+      </div>
+    );
+  } else if (route.page === "practice") {
+    page = (
+      <div className="pilot-page practical-page">
+        <PageIntro eyebrow="Paso 5 de 5" title="Evaluación práctica supervisada" description="La web organiza una pauta de observación. La competencia clínica existe solo cuando el supervisor y la institución la validan." />
+        <PracticalEvaluation
+          unlocked={progress === 100 && posttestPassed}
+          onGoToPosttest={() => navigate(courseRoutes.posttest)}
+          statuses={checklistStatuses}
+          onStatusesChange={setChecklistStatuses}
+        />
+      </div>
+    );
+  } else if (route.page === "sources") {
+    page = (
+      <div className="pilot-page sources-page">
+        <PageIntro eyebrow="Gobierno científico" title="Fuentes, versión y alcance" description="El docente define el contenido clínico. La implementación digital organiza la experiencia sin asumir autoría ni aprobación clínica." aside={<span className="pilot-version-label">{pilotLabel}</span>} />
+        <GovernanceAndDownloads />
+      </div>
+    );
+  } else {
+    page = <NotFoundPage navigate={navigate} />;
+  }
+
   return (
-    <main className="site-shell">
-      <section className="hero" aria-labelledby="page-title">
-        <div className="hero-copy">
-          <p className="eyebrow">Curso interactivo</p>
-          <h1 id="page-title">Urodinamia asistida</h1>
-          <p className="hero-lede">
-            Entrenamiento didáctico digital para TENS que participan asistiendo en urodinamias.
-          </p>
-          <div className="hero-actions">
-            <button type="button" className="primary-button" onClick={startTraining}>
-              {completed.length ? "Continuar curso" : "Iniciar capacitación"}<span aria-hidden="true">→</span>
-            </button>
-            <div className="hero-meta" aria-label="Datos del curso">
-              <span><b>9</b> módulos</span>
-              <span><b>80%</b> postest</span>
-              <span><b>{progress}%</b> módulos</span>
-            </div>
-          </div>
-        </div>
-        <figure className="hero-visual urodynamics-cover-visual">
-          <img src="/images/urodinamia-portada.jpg" alt="Pacientes de distintas edades preparados para un estudio de urodinamia con el equipo conectado." />
-        </figure>
-      </section>
-
-      <section className="route-band" aria-label="Secuencia principal del procedimiento">
-        <div className="route-intro">
-          <p className="eyebrow">Orden del procedimiento</p>
-          <strong>Una secuencia continua</strong>
-        </div>
-        <ol>
-          {stages.slice(3).map((item, index) => (
-            <li key={item.id}>
-              <button type="button" onClick={() => goToStage(index + 3)}>
-                <span>{index + 1}</span>{item.shortTitle}
-              </button>
-            </li>
-          ))}
-        </ol>
-      </section>
-
-      <TrainingPreparation onGoToCourse={() => goToStage(activeIndex)} onReviewModule={goToStageById} />
-
-      <section className="course-section" id="curso" aria-label="Curso guiado">
-        <div className="course-toolbar">
-          <div>
-            <p className="eyebrow">Recorrido guiado</p>
-            <h2>Aprende en el orden de la sala</h2>
-          </div>
-          <div className="toolbar-progress">
-            <div className="progress-copy">
-              <span>Progreso</span>
-              <strong>{completed.length} de {stages.length} módulos</strong>
-            </div>
-            <div className="progress-track" aria-label={`${progress}% completado`}>
-              <span style={{ width: `${progress}%` }} />
-            </div>
-            <button type="button" className="reset-button" onClick={resetCourse}>Reiniciar</button>
-          </div>
-        </div>
-
-        <div className="course-workspace">
-          <nav className="stage-nav" aria-label="Módulos del curso">
-            {stages.map((item, index) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setActiveIndex(index)}
-                className={index === activeIndex ? "active" : ""}
-                aria-current={index === activeIndex ? "step" : undefined}
-              >
-                <span className="stage-number">{completedSet.has(item.id) ? "✓" : String(index + 1).padStart(2, "0")}</span>
-                <span className="stage-label">
-                  <small>{item.tag}</small>
-                  <strong>{item.shortTitle}</strong>
-                </span>
-                <span className="stage-time">{item.time}</span>
-              </button>
-            ))}
-          </nav>
-
-          <article className="lesson-stage" key={stage.id}>
-            <header className="lesson-header">
-              <div>
-                <p className="eyebrow">Módulo {activeIndex + 1} · {stage.tag}</p>
-                <h2>{stage.title}</h2>
-                <p>{stage.lead}</p>
-              </div>
-              <span className="lesson-time">{stage.time}</span>
-            </header>
-
-            {stage.roleNote && (
-              <section className="role-strip" aria-label="Rol del TENS">
-                <span>Rol del TENS</span>
-                <p>{stage.roleNote}</p>
-              </section>
-            )}
-
-            <div className="lesson-grid">
-              <div className="lesson-main">
-                <figure className={`stage-photo ${stage.imageClass ?? ""}`}>
-                  <picture>
-                    {stage.mobileImage ? (
-                      <source media="(max-width: 680px)" srcSet={stage.mobileImage} />
-                    ) : null}
-                    <img src={stage.image} alt={stage.imageAlt} />
-                  </picture>
-                  <figcaption>{stage.imageCaption}</figcaption>
-                </figure>
-                <StageInteraction id={stage.id} />
-              </div>
-
-              <aside className="lesson-aside" aria-label={stage.id === "fundamentos" ? "Resumen del módulo" : "Acciones del ayudante"}>
-                <div className="objective-block">
-                  <span>Objetivo operativo</span>
-                  <p>{stage.objective}</p>
-                </div>
-                <div className="action-checks">
-                  <span>{stage.id === "fundamentos" ? "Etapas del ciclo" : "En sala"}</span>
-                  {stage.actions.map((action, index) => (
-                    <div key={action}>
-                      <b>{String(index + 1).padStart(2, "0")}</b>
-                      <p>{action}</p>
-                    </div>
-                  ))}
-                </div>
-                <div className="alert-block">
-                  <span>{stage.id === "fundamentos" ? "Límite del módulo" : "Evita este error"}</span>
-                  <p>{stage.alert}</p>
-                </div>
-              </aside>
-            </div>
-
-            <section className="knowledge-check" aria-labelledby={`question-${stage.id}`}>
-              <div className="question-copy">
-                <span>Decisión en sala</span>
-                <h3 id={`question-${stage.id}`}>{stage.question.prompt}</h3>
-              </div>
-              <div className="answer-grid">
-                {stage.question.options.map((option, index) => (
-                  <button
-                    type="button"
-                    key={option}
-                    onClick={() => chooseAnswer(index)}
-                    className={selectedAnswer === index ? (isCorrect ? "selected correct" : "selected incorrect") : ""}
-                    aria-pressed={selectedAnswer === index}
-                  >
-                    <span>{String.fromCharCode(65 + index)}</span>{option}
-                  </button>
-                ))}
-              </div>
-              {answered && (
-                <p className={`answer-feedback ${isCorrect ? "correct" : "incorrect"}`} role="status">
-                  {isCorrect ? stage.question.success : stage.question.retry}
-                </p>
-              )}
-            </section>
-
-            <footer className="lesson-footer">
-              <button type="button" className="secondary-button" onClick={() => goToStage(activeIndex - 1)} disabled={activeIndex === 0}>
-                <span aria-hidden="true">←</span>Anterior
-              </button>
-              <span>{activeIndex + 1} / {stages.length}</span>
-              <button
-                type="button"
-                className="primary-button next-button"
-                onClick={() => goToStage(activeIndex + 1)}
-                disabled={!isCorrect || activeIndex === stages.length - 1}
-              >
-                {isCorrect ? "Siguiente módulo" : "Responde para continuar"}<span aria-hidden="true">→</span>
-              </button>
-            </footer>
-          </article>
-        </div>
-
-        {progress === 100 && (
-          <div className="completion-banner" role="status">
-            <span>Módulos completados</span>
-            <strong>El recorrido teórico continúa con escenarios y postest.</strong>
-            <p>Completar los módulos no certifica competencia práctica. La aprobación final depende de observación y firma del supervisor.</p>
-            <button type="button" className="primary-button" onClick={() => document.querySelector("#escenarios")?.scrollIntoView({ behavior: "smooth", block: "start" })}>Continuar con escenarios<span aria-hidden="true">→</span></button>
-          </div>
-        )}
-      </section>
-
-      <TrainingCompletion
-        onReviewModule={goToStageById}
-        onGoToCourse={() => goToStage(activeIndex)}
-        courseCompleted={progress === 100}
-        courseProgress={progress}
-        posttestPassed={posttestPassed}
-        onPosttestResult={setPosttestPassed}
-        checklistStatuses={checklistStatuses}
-        onChecklistStatusesChange={setChecklistStatuses}
-      />
-
-      <section className="principles-band" aria-label="Principios técnicos">
-        <div><span>01</span><strong>Privacidad</strong><p>El flujo libre y el vaciado requieren un entorno reservado.</p></div>
-        <div><span>02</span><strong>Receptor listo</strong><p>Vacío, centrado bajo el embudo y con batería disponible.</p></div>
-        <div><span>03</span><strong>Sin aire</strong><p>La columna de líquido debe transmitir la presión.</p></div>
-        <div><span>04</span><strong>Sin tracción</strong><p>Las cintas estabilizan; no comprimen ni tiran.</p></div>
-      </section>
-
-      <footer className="site-footer">
-        <p>Material educativo para entrenamiento de ayudantes, sujeto al protocolo local y a supervisión clínica.</p>
-        <p>
-          Base técnica: <a href="https://pubmed.ncbi.nlm.nih.gov/27917521/" target="_blank" rel="noreferrer">ICS Good Urodynamic Practices 2016</a>
-          <span aria-hidden="true"> · </span>
-          <a href="https://doi.org/10.1016/j.cont.2023.100710" target="_blank" rel="noreferrer">ICS-SUFU presión-flujo 2023, parte 1</a>
-          <span aria-hidden="true"> · </span>
-          <a href="https://doi.org/10.1016/j.cont.2023.100709" target="_blank" rel="noreferrer">ICS-SUFU presión-flujo 2023, parte 2</a>
-        </p>
-      </footer>
-    </main>
+    <>
+      <PilotHeader routePath={routePath} navigate={navigate} />
+      <main className="site-shell routed-site-shell">{page}</main>
+      <div className="footer-shell"><CourseFooter /></div>
+    </>
   );
 }

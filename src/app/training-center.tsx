@@ -31,19 +31,25 @@ const scenarioPhases: Array<{ id: ScenarioPhase; number: string; label: string }
   { id: "notify", number: "02", label: "Avisar" },
 ];
 
-function scrollToId(id: string) {
-  window.setTimeout(() => {
-    document.querySelector(`#${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, 0);
-}
-
-export function TrainingRoadmap({ onGoToCourse }: { onGoToCourse: () => void }) {
+export function TrainingRoadmap({
+  onGoToPretest,
+  onGoToCourse,
+  onGoToScenarios,
+  onGoToPosttest,
+  onGoToPractice,
+}: {
+  onGoToPretest: () => void;
+  onGoToCourse: () => void;
+  onGoToScenarios: () => void;
+  onGoToPosttest: () => void;
+  onGoToPractice: () => void;
+}) {
   const steps = [
-    { number: "01", title: "Pretest", detail: "Línea base sin aprobación", action: () => scrollToId("pretest") },
+    { number: "01", title: "Pretest", detail: "Línea base sin aprobación", action: onGoToPretest },
     { number: "02", title: "Curso guiado", detail: "9 módulos en orden de sala", action: onGoToCourse },
-    { number: "03", title: "Escenarios", detail: "Detectar y avisar", action: () => scrollToId("escenarios") },
-    { number: "04", title: "Postest", detail: "Umbral interno: 80% + críticas", action: () => scrollToId("postest") },
-    { number: "05", title: "Práctica", detail: "Observación y firma del supervisor", action: () => scrollToId("practica") },
+    { number: "03", title: "Escenarios", detail: "Detectar y avisar", action: onGoToScenarios },
+    { number: "04", title: "Postest", detail: "Umbral interno: 80% + críticas", action: onGoToPosttest },
+    { number: "05", title: "Práctica", detail: "Observación y firma del supervisor", action: onGoToPractice },
   ];
 
   return (
@@ -70,7 +76,7 @@ export function TrainingRoadmap({ onGoToCourse }: { onGoToCourse: () => void }) 
   );
 }
 
-function CompetencyMatrix() {
+export function CompetencyMatrix() {
   const [activeId, setActiveId] = useState(competencyProfiles[0].id);
   const profile = competencyProfiles.find((item) => item.id === activeId) ?? competencyProfiles[0];
   const columns = [
@@ -124,15 +130,19 @@ type AssessmentProps = {
   unlocked?: boolean;
   courseProgress?: number;
   onGoToCourse?: () => void;
+  onContinue?: () => void;
+  onGoToPractice?: () => void;
   onResult?: (passed: boolean) => void;
 };
 
-function Assessment({
+export function Assessment({
   mode,
   onReviewModule,
   unlocked = true,
   courseProgress = 0,
   onGoToCourse,
+  onContinue,
+  onGoToPractice,
   onResult,
 }: AssessmentProps) {
   const isPost = mode === "postest";
@@ -243,8 +253,8 @@ function Assessment({
         )}
         <div className="assessment-result-actions">
           <button type="button" className="secondary-button" onClick={start}>Nuevo banco aleatorio</button>
-          {isPost && passed && <button type="button" className="primary-button" onClick={() => scrollToId("practica")}>Ir a evaluación práctica<span aria-hidden="true">→</span></button>}
-          {!isPost && <button type="button" className="primary-button" onClick={() => scrollToId("curso")}>Comenzar módulos<span aria-hidden="true">→</span></button>}
+          {isPost && passed && <button type="button" className="primary-button" onClick={onGoToPractice}>Ir a evaluación práctica<span aria-hidden="true">→</span></button>}
+          {!isPost && <button type="button" className="primary-button" onClick={onContinue}>Comenzar módulos<span aria-hidden="true">→</span></button>}
         </div>
       </section>
     );
@@ -335,7 +345,7 @@ function PabdLossCurves() {
   );
 }
 
-function ScenarioLab() {
+export function ScenarioLab() {
   const [scenarioId, setScenarioId] = useState(incidentScenarios[0].id);
   const [phase, setPhase] = useState<ScenarioPhase>("detect");
   const scenario = incidentScenarios.find((item) => item.id === scenarioId) ?? incidentScenarios[0];
@@ -389,7 +399,7 @@ function ScenarioLab() {
   );
 }
 
-function PracticalEvaluation({
+export function PracticalEvaluation({
   unlocked,
   onGoToPosttest,
   statuses,
@@ -508,7 +518,7 @@ function PracticalEvaluation({
   );
 }
 
-function GovernanceAndDownloads() {
+export function GovernanceAndDownloads() {
   const [tab, setTab] = useState<"governance" | "sources" | "downloads">("governance");
 
   return (
@@ -588,56 +598,5 @@ function GovernanceAndDownloads() {
         <p className="download-warning"><strong>Borrador no acreditante.</strong> Requiere completar autor, revisor, equipo, protocolo local y aprobación institucional antes de uso formal.</p>
       </div>
     </section>
-  );
-}
-
-export function TrainingPreparation({ onGoToCourse, onReviewModule }: { onGoToCourse: () => void; onReviewModule: (id: string) => void }) {
-  return (
-    <>
-      <TrainingRoadmap onGoToCourse={onGoToCourse} />
-      <CompetencyMatrix />
-      <Assessment mode="pretest" onReviewModule={onReviewModule} />
-    </>
-  );
-}
-
-export function TrainingCompletion({
-  onReviewModule,
-  onGoToCourse,
-  courseCompleted,
-  courseProgress,
-  posttestPassed,
-  onPosttestResult,
-  checklistStatuses,
-  onChecklistStatusesChange,
-}: {
-  onReviewModule: (id: string) => void;
-  onGoToCourse: () => void;
-  courseCompleted: boolean;
-  courseProgress: number;
-  posttestPassed: boolean;
-  onPosttestResult: (passed: boolean) => void;
-  checklistStatuses: Record<string, PracticalStatus>;
-  onChecklistStatusesChange: (statuses: Record<string, PracticalStatus>) => void;
-}) {
-  return (
-    <>
-      <ScenarioLab />
-      <Assessment
-        mode="postest"
-        onReviewModule={onReviewModule}
-        unlocked={courseCompleted}
-        courseProgress={courseProgress}
-        onGoToCourse={onGoToCourse}
-        onResult={onPosttestResult}
-      />
-      <PracticalEvaluation
-        unlocked={courseCompleted && posttestPassed}
-        onGoToPosttest={() => scrollToId("postest")}
-        statuses={checklistStatuses}
-        onStatusesChange={onChecklistStatusesChange}
-      />
-      <GovernanceAndDownloads />
-    </>
   );
 }
